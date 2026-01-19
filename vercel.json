@@ -1,15 +1,13 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "builds": [
     {
       "src": "backend/main.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
+      "use": "@vercel/python",
       "config": {
-        "distDir": "dist"
+        "maxLambdaSize": "50mb"
       }
     }
   ],
@@ -19,11 +17,20 @@
       "dest": "backend/main.py"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
   ],
   "env": {
     "PYTHON_VERSION": "3.11"
+  },
+  "functions": {
+    "backend/main.py": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
   }
 }

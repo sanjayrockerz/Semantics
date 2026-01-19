@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Literal
 import os
@@ -9,8 +9,19 @@ import time
 import asyncio
 from datetime import datetime
 from pathlib import Path
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 app = FastAPI(title="Semantic Video Search API")
+
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", ""),
+    api_key=os.getenv("CLOUDINARY_API_KEY", ""),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET", ""),
+    secure=True
+)
 
 # CORS Configuration
 app.add_middleware(
@@ -34,6 +45,8 @@ class Video(BaseModel):
     status: Literal["queued", "processing", "ready", "error"]
     thumbnailUrl: str
     progress: int
+    cloudinaryUrl: Optional[str] = None
+    cloudinaryPublicId: Optional[str] = None
 
 class SearchFilters(BaseModel):
     minScore: float = 0.3
@@ -172,7 +185,7 @@ def analyze_filename_for_emotion(filename: str) -> str:
     name_hash = sum(ord(c) for c in filename_lower)
     return emotion_keys[name_hash % len(emotion_keys)]
 
-async def process_video_background(video_id: str, filepath: Path, filename: str):
+async def process_video_background(video_id: str, cloudinary_url: str, filename: str):
     """Simulate video processing with AI analysis"""
     import random
     
@@ -191,7 +204,7 @@ async def process_video_background(video_id: str, filepath: Path, filename: str)
         emotion_key = analyze_filename_for_emotion(filename)
         profile = SEMANTIC_PROFILES[emotion_key]
         
-        # Create searchable clip
+        # Create searchable clip with Cloudinary URL
         new_clip = SearchResult(
             id=f"clip_{video_id}",
             videoId=video_id,
@@ -199,7 +212,7 @@ async def process_video_background(video_id: str, filepath: Path, filename: str)
             startSec=0,
             endSec=15,
             thumbnailUrl="",
-            previewUrl=f"http://localhost:8000/api/videos/{video_id}/stream",
+            previewUrl=cloudinary_url,
             tags=profile['tags'],
             description=profile['description'],
             score=0,
@@ -232,13 +245,24 @@ async def upload_video(file: UploadFile = File(...)):
     if len(content) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (Max 50MB)")
     
-    # Save file
+    # Save file and upload to Cloudinary
     video_id = str(uuid.uuid4())[:8]
-    file_extension = Path(file.filename or "video.mp4").suffix
-    filepath = UPLOAD_DIR / f"{video_id}{file_extension}"
     
-    with open(filepath, "wb") as f:
-        f.write(content)
+    # Upload to Cloudinary
+    try:
+        upload_result = cloudinary.uploader.upload(
+            content,
+            resource_type="video",
+            public_id=f"semantic_videos/{video_id}",
+            folder="semantic_videos",
+            overwrite=True
+        )
+        
+        cloudinary_url = upload_result.get("secure_url")
+        cloudinary_public_id = upload_result.get("public_id")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     
     # Create video entry
     video = Video(
@@ -248,13 +272,15 @@ async def upload_video(file: UploadFile = File(...)):
         uploadDate=datetime.now().isoformat(),
         status="queued",
         thumbnailUrl="",
-        progress=0
+        progress=0,
+        cloudinaryUrl=cloudinary_url,
+        cloudinaryPublicId=cloudinary_public_id
     )
     
     videos_db[video_id] = video
     
     # Start background processing
-    asyncio.create_task(process_video_background(video_id, filepath, video.filename))
+    asyncio.create_task(process_video_background(video_id, cloudinary_url, video.filename))
     
     return video
 
@@ -265,53 +291,20 @@ async def get_videos():
 
 @app.get("/api/videos/{video_id}/stream")
 async def stream_video(video_id: str, request: Request):
-    """Stream uploaded video file with range request support"""
-    # Find video file
-    video_files = list(UPLOAD_DIR.glob(f"{video_id}.*"))
-    
-    if not video_files:
+    """Redirect to Cloudinary URL for video streaming"""
+    if video_id not in videos_db:
         raise HTTPException(status_code=404, detail="Video not found")
     
-    video_path = video_files[0]
-    file_size = os.path.getsize(video_path)
+    video = videos_db[video_id]
     
-    # Check for range header
-    range_header = request.headers.get("range")
+    if video.status != "ready":
+        raise HTTPException(status_code=400, detail="Video not ready")
     
-    if range_header:
-        # Parse range header
-        range_match = range_header.replace("bytes=", "").split("-")
-        start = int(range_match[0]) if range_match[0] else 0
-        end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
-        
-        # Read the requested chunk
-        chunk_size = end - start + 1
-        
-        def iterfile():
-            with open(video_path, "rb") as f:
-                f.seek(start)
-                remaining = chunk_size
-                while remaining:
-                    chunk = f.read(min(8192, remaining))
-                    if not chunk:
-                        break
-                    remaining -= len(chunk)
-                    yield chunk
-        
-        headers = {
-            "Content-Range": f"bytes {start}-{end}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(chunk_size),
-            "Content-Type": "video/mp4",
-        }
-        
-        return StreamingResponse(
-            iterfile(),
-            status_code=206,
-            headers=headers,
-            media_type="video/mp4"
-        )
-    else:
+    if not video.cloudinaryUrl:
+        raise HTTPException(status_code=404, detail="Video URL not available")
+    
+    # Redirect to Cloudinary (they handle Range requests automatically)
+    return RedirectResponse(url=video.cloudinaryUrl)
         # Return full file
         return FileResponse(
             video_path,
