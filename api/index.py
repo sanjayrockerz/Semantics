@@ -1,17 +1,21 @@
-import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Set Cloudinary env vars for Vercel
+os.environ["CLOUDINARY_CLOUD_NAME"] = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+os.environ["CLOUDINARY_API_KEY"] = os.getenv("CLOUDINARY_API_KEY", "")
+os.environ["CLOUDINARY_API_SECRET"] = os.getenv("CLOUDINARY_API_SECRET", "")
+
+from mangum import Mangum
+import sys
 from pathlib import Path
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
-
-# Add backend to path
+# Add backend to Python path
 backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
 
 from main import app
 
-# Vercel serverless handler
-def handler(request, context):
-    return app(request, context)
+# Mangum adapter for AWS Lambda/Vercel
+handler = Mangum(app, lifespan="off")

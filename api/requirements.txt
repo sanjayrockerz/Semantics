@@ -5,3 +5,4 @@ python-multipart==0.0.12
 pydantic==2.10.0
 aiofiles==24.1.0
 cloudinary==1.41.0
+mangum==0.17.0
