@@ -1,6 +1,8 @@
 import { SearchResponse, Video, SearchFilters } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL for production (same domain), localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
 
 /**
  * Upload a video file to the backend
