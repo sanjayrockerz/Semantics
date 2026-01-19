@@ -14,18 +14,23 @@ import cloudinary.uploader
 import cloudinary.api
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+# Load environment variables from .env file (for local development)
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
 
 app = FastAPI(title="Semantic Video Search API")
 
 # Configure Cloudinary
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", ""),
-    api_key=os.getenv("CLOUDINARY_API_KEY", ""),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET", ""),
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     secure=True
 )
+
+# Debug: Log if Cloudinary is configured (remove after testing)
+print(f"Cloudinary configured: {bool(os.getenv('CLOUDINARY_CLOUD_NAME'))}")
 
 # CORS Configuration
 app.add_middleware(
