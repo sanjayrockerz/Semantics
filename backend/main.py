@@ -12,6 +12,10 @@ from pathlib import Path
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 app = FastAPI(title="Semantic Video Search API")
 
@@ -305,15 +309,6 @@ async def stream_video(video_id: str, request: Request):
     
     # Redirect to Cloudinary (they handle Range requests automatically)
     return RedirectResponse(url=video.cloudinaryUrl)
-        # Return full file
-        return FileResponse(
-            video_path,
-            media_type="video/mp4",
-            headers={
-                "Accept-Ranges": "bytes",
-                "Content-Length": str(file_size),
-            }
-        )
 
 @app.post("/api/search", response_model=SearchResponse)
 async def search_clips(query: str = Query(...), filters: Optional[SearchFilters] = None):
