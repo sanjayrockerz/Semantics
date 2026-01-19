@@ -1,8 +1,10 @@
 import { SearchResponse, Video, SearchFilters } from '../types';
 
-// Use relative URL for production (same domain), localhost for development
+// API Base URL - use environment variable or default to Render backend
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
+  (window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000' 
+    : 'https://semantic-backend-hw24.onrender.com');
 
 /**
  * Upload a video file to the backend
