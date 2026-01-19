@@ -293,6 +293,30 @@ async def get_videos():
     """Get all uploaded videos with their status"""
     return list(videos_db.values())
 
+@app.delete("/api/videos/{video_id}")
+async def delete_video(video_id: str):
+    """Delete a video from Cloudinary and database"""
+    if video_id not in videos_db:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    video = videos_db[video_id]
+    
+    # Delete from Cloudinary if exists
+    if video.cloudinaryPublicId:
+        try:
+            cloudinary.uploader.destroy(video.cloudinaryPublicId, resource_type="video")
+        except Exception as e:
+            print(f"Error deleting from Cloudinary: {e}")
+    
+    # Remove from database
+    del videos_db[video_id]
+    
+    # Remove from searchable clips
+    global searchable_clips
+    searchable_clips = [clip for clip in searchable_clips if clip.videoId != video_id]
+    
+    return {"message": "Video deleted successfully"}
+
 @app.get("/api/videos/{video_id}/stream")
 async def stream_video(video_id: str, request: Request):
     """Redirect to Cloudinary URL for video streaming"""

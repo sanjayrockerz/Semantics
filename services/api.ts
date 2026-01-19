@@ -68,3 +68,11 @@ export const healthCheck = async (): Promise<{ status: string }> => {
   const response = await fetch(`${API_BASE_URL}/health`);
   return response.json();
 };
+export const deleteVideo = async (videoId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/videos/${videoId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete video');
+  }
+};

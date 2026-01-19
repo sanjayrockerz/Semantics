@@ -3,8 +3,9 @@ import { SearchResult } from '../types';
 import { ConfidenceBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { VideoPlayer } from './VideoPlayer';
-import { Copy, Tag, Play, Clock } from 'lucide-react';
+import { Copy, Tag, Play, Clock, Trash2 } from 'lucide-react';
 import { formatTimecode } from '../lib/utils';
+import { deleteVideo } from '../services/api';
 
 interface ResultCardProps {
   result: SearchResult;
@@ -13,11 +14,28 @@ interface ResultCardProps {
 export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCopyTimecode = () => {
     navigator.clipboard.writeText(formatTimecode(result.startSec));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this video?')) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteVideo(result.videoId);
+      window.location.reload(); // Refresh to show updated list
+    } catch (error) {
+      console.error('Failed to delete video:', error);
+      alert('Failed to delete video');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleVideoThumbnailLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -28,6 +46,15 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
     <div className="group/card glass rounded-2xl overflow-hidden hover:border-primary/50 border-2 border-transparent transition-all duration-500 shadow-lg hover:shadow-2xl hover:shadow-primary/20 flex flex-col h-full hover:scale-[1.02] transform">
       {/* Media Area */}
       <div className="relative bg-black aspect-video cursor-pointer overflow-hidden" onClick={() => setShowPreview(true)}>
+        {/* Delete Button */}
+        <button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="absolute top-2 right-2 z-10 bg-red-500/90 hover:bg-red-600 text-white p-2 rounded-lg transition-all duration-200 hover:scale-110 disabled:opacity-50"
+          title="Delete video"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
           {showPreview ? (
             <VideoPlayer 
               src={result.previewUrl} 
