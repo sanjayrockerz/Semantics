@@ -1,0 +1,5 @@
+{
+  "name": "Semantic Footage Search",
+  "description": "A semantic video search engine for editors to find footage using natural language queries.",
+  "requestFramePermissions": []
+}
